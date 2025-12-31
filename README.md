@@ -11,3 +11,11 @@ REPORT_GAS=true npx hardhat test
 npx hardhat node
 npx hardhat ignition deploy ./ignition/modules/Lock.js
 ```
+
+Crowd Funding Blockchain
+
+npx hardhat node  
+npx hardhat run scripts/deploy.js --network localhost
+
+cd client
+npm run dev
