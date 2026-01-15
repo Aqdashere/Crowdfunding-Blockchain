@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useCrowdfunding } from './context/CrowdfundingContext';
+import { contractAddress } from './utils/constants';
 
 function App() {
   const {
@@ -9,6 +10,7 @@ function App() {
     changeAccount,
     selectAccount,
     currentAccount,
+    balance, // Import balance
     createCampaign,
     getCampaigns,
     donate,
@@ -61,30 +63,37 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!currentAccount) {
       alert('Please connect wallet first');
       return;
     }
-    
+
     setLoading(true);
     try {
-      await createCampaign(form);
-      
+      const tx = await createCampaign(form);
+      const url = `${import.meta.env.VITE_ETHERSCAN_URL}${tx.hash}`;
+      const userAction = confirm("Campaign created! Click OK to open Etherscan, or Cancel to stay here.");
+      if (userAction) window.open(url, '_blank');
+
       setTimeout(async () => {
         await fetchCampaigns();
         setShowForm(false);
-        setForm({ 
-          title: '', 
-          description: '', 
-          target: '', 
-          deadline: '', 
-          image: '' 
+        setForm({
+          title: '',
+          description: '',
+          target: '',
+          deadline: '',
+          image: ''
         });
       }, 1000);
     } catch (error) {
       console.error("Error creating campaign:", error);
-      alert("Error creating campaign. Please try again.");
+      if (error.code === 'INSUFFICIENT_FUNDS' || error.message.includes('funds')) {
+        alert("Transaction failed: Insufficient SepoliaETH.\n\nSince this is a testnet, the money is FREE!\n\nGet free SepoliaETH here:\nhttps://cloud.google.com/application/blockchain/faucet/ethereum/sepolia");
+      } else {
+        alert("Error creating campaign: " + (error.reason || error.message));
+      }
     }
     setLoading(false);
   };
@@ -99,13 +108,20 @@ function App() {
     if (amount) {
       setLoading(true);
       try {
-        await donate(pId, amount);
+        const tx = await donate(pId, amount);
+        const url = `${import.meta.env.VITE_ETHERSCAN_URL}${tx.hash}`;
+        const userAction = confirm("Donation successful! Click OK to open Etherscan, or Cancel to stay here.");
+        if (userAction) window.open(url, '_blank');
         setTimeout(() => {
           fetchCampaigns();
         }, 1000);
       } catch (error) {
         console.error("Donation failed:", error);
-        alert("Donation failed. Please try again.");
+        if (error.code === 'INSUFFICIENT_FUNDS' || error.message.includes('funds')) {
+          alert("Transaction failed: Insufficient SepoliaETH.\n\nSince this is a testnet, the money is FREE!\n\nGet free SepoliaETH here:\nhttps://cloud.google.com/application/blockchain/faucet/ethereum/sepolia");
+        } else {
+          alert("Donation failed: " + (error.reason || error.message));
+        }
       }
       setLoading(false);
     }
@@ -126,7 +142,7 @@ function App() {
     setShowFundingDetails(true);
     setLoadingDonations(true);
     setDonations([]);
-    
+
     try {
       console.log('Fetching donators for campaign ID:', campaign.pId);
       const donationsList = await getDonators(campaign.pId);
@@ -136,7 +152,7 @@ function App() {
       console.error('Error loading donations:', error);
       alert('Error loading donation details. Check console.');
     }
-    
+
     setLoadingDonations(false);
   };
 
@@ -160,31 +176,31 @@ function App() {
     console.log('📊 Loading your transactions for:', currentAccount);
     setShowMyTransactions(true);
     setLoadingMyTransactions(true);
-    
+
     // Find campaigns created by current user
     const createdCampaigns = campaigns.filter(
       campaign => campaign.owner.toLowerCase() === currentAccount.toLowerCase()
     );
-    
+
     console.log('Campaigns you created:', createdCampaigns.length);
 
     // Find campaigns user donated to
     const donatedCampaigns = [];
-    
+
     console.log('Checking donations across', campaigns.length, 'campaigns...');
-    
+
     for (let campaign of campaigns) {
       try {
         console.log(`Checking campaign ${campaign.pId}: ${campaign.title}`);
         const donationsList = await getDonators(campaign.pId);
         console.log(`Found ${donationsList.length} total donations`);
-        
+
         const userDonations = donationsList.filter(
           donation => donation.donator.toLowerCase() === currentAccount.toLowerCase()
         );
-        
+
         console.log(`Your donations to this campaign: ${userDonations.length}`);
-        
+
         if (userDonations.length > 0) {
           const totalDonated = userDonations.reduce((sum, d) => sum + parseFloat(d.amount), 0);
           donatedCampaigns.push({
@@ -208,12 +224,12 @@ function App() {
       created: createdCampaigns,
       donated: donatedCampaigns
     });
-    
+
     setLoadingMyTransactions(false);
   };
 
   return (
-    <div style={{ 
+    <div style={{
       minHeight: '100vh',
       background: '#f8f9fa',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -272,7 +288,7 @@ function App() {
                     {myTransactions.created.length}
                   </div>
                 </div>
-                
+
                 <div style={{
                   background: '#f0fdf4',
                   padding: '16px',
@@ -286,7 +302,7 @@ function App() {
                     {myTransactions.donated.length}
                   </div>
                 </div>
-                
+
                 <div style={{
                   background: '#fef3c7',
                   padding: '16px',
@@ -330,142 +346,142 @@ function App() {
             {/* Campaigns Created */}
             {!loadingMyTransactions && (
               <div style={{ marginBottom: '32px' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
-                Campaigns You Created ({myTransactions.created.length})
-              </h3>
-              
-              {myTransactions.created.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  background: '#f9fafb',
-                  borderRadius: '12px',
-                  color: '#6b7280'
-                }}>
-                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📝</div>
-                  <div style={{ fontSize: '14px' }}>You haven't created any campaigns yet</div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {myTransactions.created.map((campaign, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        padding: '16px',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '12px',
-                        background: 'white'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600' }}>
-                            {campaign.title}
-                          </h4>
-                          <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6b7280' }}>
-                            {campaign.description}
-                          </p>
-                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                            Deadline: {new Date(campaign.deadline).toLocaleDateString()}
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
+                  Campaigns You Created ({myTransactions.created.length})
+                </h3>
+
+                {myTransactions.created.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    background: '#f9fafb',
+                    borderRadius: '12px',
+                    color: '#6b7280'
+                  }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>📝</div>
+                    <div style={{ fontSize: '14px' }}>You haven't created any campaigns yet</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {myTransactions.created.map((campaign, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: '16px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '12px',
+                          background: 'white'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600' }}>
+                              {campaign.title}
+                            </h4>
+                            <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6b7280' }}>
+                              {campaign.description}
+                            </p>
+                            <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                              Deadline: {new Date(campaign.deadline).toLocaleDateString()}
+                            </div>
                           </div>
-                        </div>
-                        <div style={{ textAlign: 'right', marginLeft: '16px' }}>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827' }}>
-                            {campaign.amountCollected} / {campaign.target} ETH
-                          </div>
-                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                            {((parseFloat(campaign.amountCollected) / parseFloat(campaign.target)) * 100).toFixed(1)}% funded
+                          <div style={{ textAlign: 'right', marginLeft: '16px' }}>
+                            <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827' }}>
+                              {campaign.amountCollected} / {campaign.target} ETH
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                              {((parseFloat(campaign.amountCollected) / parseFloat(campaign.target)) * 100).toFixed(1)}% funded
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Campaigns Donated To */}
             {!loadingMyTransactions && (
               <div>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
-                Campaigns You Backed ({myTransactions.donated.length})
-              </h3>
-              
-              {myTransactions.donated.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  background: '#f9fafb',
-                  borderRadius: '12px',
-                  color: '#6b7280'
-                }}>
-                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>💝</div>
-                  <div style={{ fontSize: '14px' }}>You haven't backed any campaigns yet</div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {myTransactions.donated.map((item, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        padding: '16px',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '12px',
-                        background: 'white'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600' }}>
-                            {item.campaign.title}
-                          </h4>
-                          <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6b7280' }}>
-                            {item.campaign.description}
-                          </p>
-                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                            Number of contributions: {item.donations.length}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right', marginLeft: '16px' }}>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981' }}>
-                            {item.totalDonated.toFixed(4)} ETH
-                          </div>
-                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                            Your contribution
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Individual donations */}
-                      {item.donations.length > 1 && (
-                        <div style={{
-                          marginTop: '12px',
-                          paddingTop: '12px',
-                          borderTop: '1px solid #f3f4f6'
-                        }}>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
-                            Your donations:
-                          </div>
-                          {item.donations.map((donation, dIndex) => (
-                            <div
-                              key={dIndex}
-                              style={{
-                                fontSize: '13px',
-                                color: '#374151',
-                                marginBottom: '4px'
-                              }}
-                            >
-                              • {donation.amount} ETH on {formatDate(donation.timestamp)}
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
+                  Campaigns You Backed ({myTransactions.donated.length})
+                </h3>
+
+                {myTransactions.donated.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    background: '#f9fafb',
+                    borderRadius: '12px',
+                    color: '#6b7280'
+                  }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>💝</div>
+                    <div style={{ fontSize: '14px' }}>You haven't backed any campaigns yet</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {myTransactions.donated.map((item, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: '16px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '12px',
+                          background: 'white'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600' }}>
+                              {item.campaign.title}
+                            </h4>
+                            <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6b7280' }}>
+                              {item.campaign.description}
+                            </p>
+                            <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                              Number of contributions: {item.donations.length}
                             </div>
-                          ))}
+                          </div>
+                          <div style={{ textAlign: 'right', marginLeft: '16px' }}>
+                            <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981' }}>
+                              {item.totalDonated.toFixed(4)} ETH
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                              Your contribution
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+
+                        {/* Individual donations */}
+                        {item.donations.length > 1 && (
+                          <div style={{
+                            marginTop: '12px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #f3f4f6'
+                          }}>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                              Your donations:
+                            </div>
+                            {item.donations.map((donation, dIndex) => (
+                              <div
+                                key={dIndex}
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#374151',
+                                  marginBottom: '4px'
+                                }}
+                              >
+                                • {donation.amount} ETH on {formatDate(donation.timestamp)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             <button
@@ -567,9 +583,9 @@ function App() {
               </h3>
 
               {loadingDonations ? (
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '40px', 
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px',
                   color: '#6b7280',
                   background: '#f9fafb',
                   borderRadius: '12px'
@@ -603,9 +619,9 @@ function App() {
                 </div>
               ) : (
                 <div>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    color: '#6b7280', 
+                  <div style={{
+                    fontSize: '14px',
+                    color: '#6b7280',
                     marginBottom: '12px',
                     padding: '8px 12px',
                     background: '#f0fdf4',
@@ -614,7 +630,7 @@ function App() {
                   }}>
                     Total {donations.length} contribution{donations.length !== 1 ? 's' : ''} received
                   </div>
-                  
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {donations.map((donation, index) => (
                       <div
@@ -773,8 +789,11 @@ function App() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <button
                 onClick={() => {
-                  connectLocalWallet();
-                  setShowWalletOptions(false);
+                  const privateKey = prompt("Please enter your Private Key (Sepolia):");
+                  if (privateKey) {
+                    connectLocalWallet(privateKey);
+                    setShowWalletOptions(false);
+                  }
                 }}
                 style={{
                   padding: '16px',
@@ -795,10 +814,10 @@ function App() {
                 }}
               >
                 <div style={{ fontWeight: '600', fontSize: '16px', marginBottom: '4px' }}>
-                  🏠 Local Wallet
+                  🔑 Private Key Wallet
                 </div>
                 <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                  Connect to local Hardhat blockchain (No MetaMask needed)
+                  Connect using your Private Key directly (Sepolia compatible)
                 </div>
               </button>
 
@@ -971,9 +990,9 @@ function App() {
               Blockchain-powered fundraising
             </p>
           </div>
-          
+
           {!currentAccount ? (
-            <button 
+            <button
               onClick={() => setShowWalletOptions(true)}
               style={{
                 background: '#111827',
@@ -990,19 +1009,27 @@ function App() {
             </button>
           ) : (
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{
-                background: '#f3f4f6',
-                padding: '8px 16px',
-                borderRadius: '8px'
-              }}>
+              <div
+                style={{
+                  background: '#f3f4f6',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  navigator.clipboard.writeText(currentAccount);
+                  alert("Address copied to clipboard: " + currentAccount);
+                }}
+                title="Click to copy full address"
+              >
                 <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '2px' }}>
-                  {connectionType === 'local' ? '🏠 Local' : '🦊 MetaMask'}
+                  {connectionType === 'local' ? '🏠 Local' : '🦊 MetaMask'} • {parseFloat(balance).toFixed(4)} ETH
                 </div>
                 <div style={{ fontSize: '13px', fontFamily: 'monospace', color: '#374151' }}>
-                  {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)}
+                  {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)} (Copy)
                 </div>
               </div>
-              
+
               {connectionType === 'local' && (
                 <button
                   onClick={changeAccount}
@@ -1020,7 +1047,7 @@ function App() {
                   Switch Account
                 </button>
               )}
-              
+
               <button
                 onClick={viewMyTransactions}
                 style={{
@@ -1036,8 +1063,8 @@ function App() {
               >
                 My Transactions
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setShowForm(!showForm)}
                 style={{
                   background: '#111827',
@@ -1052,7 +1079,7 @@ function App() {
               >
                 {showForm ? 'Cancel' : 'New Campaign'}
               </button>
-              
+
               <button
                 onClick={disconnectWallet}
                 style={{
@@ -1076,9 +1103,9 @@ function App() {
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
         {/* Create Campaign Form */}
         {showForm && currentAccount && (
-          <div style={{ 
-            background: 'white', 
-            padding: '32px', 
+          <div style={{
+            background: 'white',
+            padding: '32px',
             borderRadius: '12px',
             marginBottom: '32px',
             border: '1px solid #e5e7eb'
@@ -1107,7 +1134,7 @@ function App() {
                     required
                   />
                 </div>
-                
+
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
                     Description
@@ -1129,7 +1156,7 @@ function App() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
                     Funding Goal (ETH)
@@ -1152,7 +1179,7 @@ function App() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
                     Deadline
@@ -1174,8 +1201,8 @@ function App() {
                   />
                 </div>
               </div>
-              
-              <button 
+
+              <button
                 type="submit"
                 disabled={loading}
                 style={{
@@ -1204,7 +1231,7 @@ function App() {
               {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''} available
             </p>
           </div>
-          <button 
+          <button
             onClick={fetchCampaigns}
             style={{
               background: 'white',
@@ -1235,19 +1262,19 @@ function App() {
             </p>
           </div>
         ) : (
-          <div style={{ 
-            display: 'grid', 
+          <div style={{
+            display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
             gap: '24px'
           }}>
             {campaigns.map((campaign, i) => {
               const progress = calculateProgress(campaign.amountCollected, campaign.target);
               const daysLeft = calculateDaysLeft(campaign.deadline);
-              
+
               return (
-                <div 
-                  key={i} 
-                  style={{ 
+                <div
+                  key={i}
+                  style={{
                     background: 'white',
                     border: '1px solid #e5e7eb',
                     borderRadius: '12px',
@@ -1259,11 +1286,11 @@ function App() {
                     <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '18px', fontWeight: '600' }}>
                       {campaign.title}
                     </h3>
-                    
+
                     <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
                       {campaign.description}
                     </p>
-                    
+
                     <div style={{ marginBottom: '20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <span style={{ fontSize: '24px', fontWeight: '700' }}>
@@ -1273,7 +1300,7 @@ function App() {
                           of {campaign.target} ETH
                         </span>
                       </div>
-                      
+
                       <div style={{ background: '#f3f4f6', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{
                           background: '#111827',
@@ -1282,13 +1309,13 @@ function App() {
                           transition: 'width 0.5s ease'
                         }} />
                       </div>
-                      
+
                       <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
                         <span>{progress.toFixed(1)}% funded</span>
                         <span>{daysLeft} days left</span>
                       </div>
                     </div>
-                    
+
                     <div style={{ padding: '12px', background: '#f9fafb', borderRadius: '8px', marginBottom: '16px' }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
                         Campaign Creator
@@ -1297,10 +1324,10 @@ function App() {
                         {campaign.owner.slice(0, 6)}...{campaign.owner.slice(-4)}
                       </div>
                     </div>
-                    
+
                     {/* Action Buttons */}
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
+                      <button
                         onClick={() => viewFundingDetails(campaign)}
                         style={{
                           flex: 1,
@@ -1325,9 +1352,39 @@ function App() {
                       >
                         View Details
                       </button>
-                      
+
+                      <button
+                        onClick={() => window.open(`https://sepolia.etherscan.io/address/${contractAddress}`, '_blank')}
+                        style={{
+                          flex: 1,
+                          background: 'white',
+                          color: '#111827',
+                          padding: '12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.background = '#f9fafb';
+                          e.currentTarget.style.borderColor = '#111827';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = 'white';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }}
+                      >
+                        🔍 Etherscan
+                      </button>
+
                       {currentAccount && (
-                        <button 
+                        <button
                           onClick={() => handleDonate(campaign.pId)}
                           disabled={loading}
                           style={{

@@ -8,6 +8,7 @@ export const CrowdfundingProvider = ({ children }) => {
   const [currentAccount, setCurrentAccount] = useState('');
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
+  const [balance, setBalance] = useState('0'); // New balance state
   const [availableAccounts, setAvailableAccounts] = useState([]);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
   const [connectionType, setConnectionType] = useState(''); // 'local' or 'metamask'
@@ -22,8 +23,10 @@ export const CrowdfundingProvider = ({ children }) => {
   // Load all local Hardhat accounts
   const loadLocalAccounts = async () => {
     try {
-      const localProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-      const accounts = [];
+      // const localProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+      // const accounts = [];
+      // Skipped for Private Key implementation
+      /*
       
       // Hardhat provides 20 test accounts
       for (let i = 0; i < 20; i++) {
@@ -31,7 +34,7 @@ export const CrowdfundingProvider = ({ children }) => {
           const signer = await localProvider.getSigner(i);
           const address = await signer.getAddress();
           const balance = await localProvider.getBalance(address);
-          
+      
           accounts.push({
             index: i,
             address: address,
@@ -43,8 +46,9 @@ export const CrowdfundingProvider = ({ children }) => {
         }
       }
       
-      setAvailableAccounts(accounts);
-      console.log(`✅ Loaded ${accounts.length} local accounts`);
+            */
+      setAvailableAccounts([]);
+      console.log(`✅ Ready to connect via Private Key`);
     } catch (error) {
       console.error('Error loading accounts:', error);
     }
@@ -59,7 +63,7 @@ export const CrowdfundingProvider = ({ children }) => {
       }
 
       console.log('Connecting to MetaMask...');
-      
+
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
       });
@@ -68,16 +72,17 @@ export const CrowdfundingProvider = ({ children }) => {
       const web3Signer = await web3Provider.getSigner();
       const address = await web3Signer.getAddress();
       const balance = await web3Provider.getBalance(address);
-      
+
       setProvider(web3Provider);
       setSigner(web3Signer);
       setCurrentAccount(address);
+      setBalance(ethers.formatEther(balance)); // Set balance
       setConnectionType('metamask');
-      
+
       console.log('✅ Connected via MetaMask');
       console.log('Address:', address);
       console.log('Balance:', ethers.formatEther(balance), 'ETH');
-      
+
       // Listen for account changes
       window.ethereum.on('accountsChanged', (accounts) => {
         if (accounts.length > 0) {
@@ -86,50 +91,48 @@ export const CrowdfundingProvider = ({ children }) => {
           disconnectWallet();
         }
       });
-      
+
     } catch (error) {
       console.error('❌ MetaMask connection error:', error);
       alert('Failed to connect to MetaMask');
     }
   };
 
-  // Connect with Local Hardhat
-  const connectLocalWallet = async () => {
+  // Connect with Private Key (formerly "Local Wallet")
+  const connectLocalWallet = async (privateKey) => {
     try {
-      console.log('Connecting to local Hardhat node...');
-      
-      const localProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-      setProvider(localProvider);
-      setConnectionType('local');
-      
-      // Load accounts and show selector
-      const accounts = [];
-      for (let i = 0; i < 20; i++) {
-        try {
-          const signer = await localProvider.getSigner(i);
-          const address = await signer.getAddress();
-          const balance = await localProvider.getBalance(address);
-          
-          accounts.push({
-            index: i,
-            address: address,
-            balance: ethers.formatEther(balance),
-            signer: signer
-          });
-        } catch (error) {
-          break;
-        }
+      if (!privateKey) {
+        alert('Private key is required!');
+        return;
       }
-      
-      setAvailableAccounts(accounts);
-      setShowAccountSelector(true);
-      
-      console.log('✅ Connected to local blockchain!');
-      console.log(`Found ${accounts.length} test accounts`);
-      
+
+      console.log('Connecting with private key...');
+
+      const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
+      if (!rpcUrl || rpcUrl.includes('YOUR_PROJECT_ID')) {
+        alert('Please set VITE_SEPOLIA_RPC_URL in client/.env');
+        return;
+      }
+
+      const localProvider = new ethers.JsonRpcProvider(rpcUrl);
+      const wallet = new ethers.Wallet(privateKey, localProvider);
+
+      setProvider(localProvider);
+      setSigner(wallet);
+      setCurrentAccount(wallet.address);
+      setConnectionType('local');
+      setShowAccountSelector(false); // No selector needed for single key
+
+      console.log('✅ Connected via Private Key!');
+      console.log('Address:', wallet.address);
+
+      const balance = await localProvider.getBalance(wallet.address);
+      console.log('Balance:', ethers.formatEther(balance), 'ETH');
+      setBalance(ethers.formatEther(balance)); // Set balance
+
     } catch (error) {
       console.error('❌ Connection error:', error);
-      alert('Make sure Hardhat node is running!\n\nRun: npx hardhat node');
+      alert('Failed to connect: ' + error.message);
     }
   };
 
@@ -137,15 +140,15 @@ export const CrowdfundingProvider = ({ children }) => {
   const selectAccount = async (accountIndex) => {
     try {
       const account = availableAccounts[accountIndex];
-      
+
       setSigner(account.signer);
       setCurrentAccount(account.address);
       setShowAccountSelector(false);
-      
+
       console.log('✅ Account selected!');
       console.log('Address:', account.address);
       console.log('Balance:', account.balance, 'ETH');
-      
+
     } catch (error) {
       console.error('Error selecting account:', error);
     }
@@ -179,7 +182,7 @@ export const CrowdfundingProvider = ({ children }) => {
       }
 
       console.log('📝 Creating campaign...', form);
-      
+
       const contract = new ethers.Contract(
         contractAddress,
         contractABI,
@@ -200,7 +203,7 @@ export const CrowdfundingProvider = ({ children }) => {
       console.log('⏳ Waiting for confirmation...');
       await tx.wait();
       console.log('✅ Campaign created!');
-      
+
       return tx;
     } catch (error) {
       console.error('❌ Error:', error);
@@ -211,15 +214,17 @@ export const CrowdfundingProvider = ({ children }) => {
   const getCampaigns = async () => {
     try {
       let contractProvider = provider;
-      
+
+      // If no provider (wallet not connected), use the Sepolia RPC directly for reading data
       if (!contractProvider) {
-        // Try local first, then MetaMask
-        if (window.ethereum) {
-          contractProvider = new ethers.BrowserProvider(window.ethereum);
+        const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
+        if (rpcUrl) {
+          console.log('Using Read-Only Sepolia Provider');
+          contractProvider = new ethers.JsonRpcProvider(rpcUrl);
         } else {
+          // Fallback to local hardhat if no RPC set
           contractProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
         }
-        setProvider(contractProvider);
       }
 
       const contract = new ethers.Contract(
@@ -231,7 +236,7 @@ export const CrowdfundingProvider = ({ children }) => {
       console.log('🔍 Fetching campaigns...');
       const campaigns = await contract.getCampaigns();
       console.log('Found', campaigns.length, 'campaigns');
-      
+
       return campaigns.map((campaign, i) => ({
         owner: campaign.owner,
         title: campaign.title,
@@ -262,7 +267,7 @@ export const CrowdfundingProvider = ({ children }) => {
       );
 
       console.log(`💰 Donating ${amount} ETH...`);
-      
+
       const tx = await contract.donateToCampaign(pId, {
         value: ethers.parseEther(amount)
       });
@@ -270,7 +275,7 @@ export const CrowdfundingProvider = ({ children }) => {
       console.log('⏳ Waiting for confirmation...');
       await tx.wait();
       console.log('✅ Donation successful!');
-      
+
       return tx;
     } catch (error) {
       console.error('❌ Donation failed:', error);
@@ -281,12 +286,12 @@ export const CrowdfundingProvider = ({ children }) => {
   const getDonators = async (campaignId) => {
     try {
       let contractProvider = provider;
-      
+
       if (!contractProvider) {
         if (window.ethereum) {
           contractProvider = new ethers.BrowserProvider(window.ethereum);
         } else {
-          contractProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+          contractProvider = new ethers.JsonRpcProvider(import.meta.env.VITE_SEPOLIA_RPC_URL || 'http://127.0.0.1:8545');
         }
         setProvider(contractProvider);
       }
@@ -299,17 +304,17 @@ export const CrowdfundingProvider = ({ children }) => {
 
       console.log(`🔍 Fetching donations for campaign ${campaignId}...`);
       const [donators, donations] = await contract.getDonators(campaignId);
-      
+
       console.log('Raw donators:', donators);
       console.log('Raw donations:', donations);
-      
+
       // Convert to readable format
       const donationsWithDetails = [];
-      
+
       for (let i = 0; i < donations.length; i++) {
         // Estimate timestamp (older donations = earlier time)
         let timestamp = Date.now() - (donations.length - i - 1) * 3600000;
-        
+
         donationsWithDetails.push({
           donator: donators[i],
           amount: ethers.formatEther(donations[i].toString()),
@@ -317,10 +322,10 @@ export const CrowdfundingProvider = ({ children }) => {
           index: i + 1
         });
       }
-      
+
       console.log(`✅ Found ${donationsWithDetails.length} donations`);
       console.log('Donations with details:', donationsWithDetails);
-      
+
       return donationsWithDetails;
     } catch (error) {
       console.error('❌ Error fetching donators:', error);
@@ -337,6 +342,7 @@ export const CrowdfundingProvider = ({ children }) => {
         changeAccount,
         selectAccount,
         currentAccount,
+        balance, // Export balance
         createCampaign,
         getCampaigns,
         donate,
