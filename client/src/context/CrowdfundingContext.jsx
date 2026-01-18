@@ -25,9 +25,9 @@ export const CrowdfundingProvider = ({ children }) => {
     try {
       // Known Sepolia Test Keys
       const testKeys = [
-        "240246504c8c1ee5d4871962b11ff85f2ed3ebaa8d958117309a0db110c06a0c", // Account 1
-        "0x5bb3c94ae652923737897b06017c972b291761eb587e88816602bd31e6dd8d12", //Account 2
-        // Account 3
+        "240246504c8c1ee5d4871962b11ff85f2ed3ebaa8d958117309a0db110c06a0c", // Account 0
+        "0x5bb3c94ae652923737897b06017c972b291761eb587e88816602bd31e6dd8d12", //Account 1
+        "0xa28edb97d4936ca734ec6b2114d7fa0dc86d433e04f61c08290475824462ed16" //Account 2
       ];
 
       const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
@@ -154,6 +154,21 @@ export const CrowdfundingProvider = ({ children }) => {
     try {
       const account = availableAccounts[accountIndex];
 
+      // Security Check: Ask for Private Key
+      const inputKey = prompt(`Enter Private Key for ${account.address.slice(0, 6)}...${account.address.slice(-4)}`);
+
+      if (!inputKey) return; // User cancelled
+
+      // Format input
+      let userKey = inputKey.trim();
+      if (!userKey.startsWith('0x')) userKey = '0x' + userKey;
+
+      // Validate against the stored signer's key
+      if (userKey.toLowerCase() !== account.signer.privateKey.toLowerCase()) {
+        alert("❌ Incorrect Private Key! Access Denied.");
+        return;
+      }
+
       // Ensure provider is set
       if (!provider) {
         const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
@@ -173,6 +188,7 @@ export const CrowdfundingProvider = ({ children }) => {
 
     } catch (error) {
       console.error('Error selecting account:', error);
+      alert("Error switching account");
     }
   };
 
