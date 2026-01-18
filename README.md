@@ -40,6 +40,7 @@ This project explores the intersection of **Data Security** and **Blockchain Tec
 4. **Deploy Contract**
    ```bash
    npx hardhat run scripts/deploy.js --network localhost
+   npx hardhat run scripts/deploy.js --network sepolia
    ```
 
 5. **Start Frontend**
