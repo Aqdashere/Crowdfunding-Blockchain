@@ -23,12 +23,13 @@ export const CrowdfundingProvider = ({ children }) => {
   // Load all local Hardhat accounts (Manual Test Mode)
   const loadLocalAccounts = async () => {
     try {
-      // Known Sepolia Test Keys
-      const testKeys = [
-        "240246504c8c1ee5d4871962b11ff85f2ed3ebaa8d958117309a0db110c06a0c", // Account 0
-        "0x5bb3c94ae652923737897b06017c972b291761eb587e88816602bd31e6dd8d12", //Account 1
-        "0xa28edb97d4936ca734ec6b2114d7fa0dc86d433e04f61c08290475824462ed16" //Account 2
-      ];
+      // Load Test Keys from Environment Variables
+      const testKeys = [];
+      let index = 0;
+      while (import.meta.env[`VITE_TEST_ACCOUNT_${index}`]) {
+        testKeys.push(import.meta.env[`VITE_TEST_ACCOUNT_${index}`]);
+        index++;
+      }
 
       const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
       const localProvider = new ethers.JsonRpcProvider(rpcUrl);
