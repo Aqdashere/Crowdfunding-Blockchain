@@ -14,41 +14,48 @@ export const CrowdfundingProvider = ({ children }) => {
   const [connectionType, setConnectionType] = useState(''); // 'local' or 'metamask'
 
   // Load accounts when provider is available
+  // Load accounts when provider is available
   useEffect(() => {
-    if (provider && connectionType === 'local') {
-      loadLocalAccounts();
-    }
-  }, [provider, connectionType]);
+    // Always load local accounts for manual testing
+    loadLocalAccounts();
+  }, []);
 
-  // Load all local Hardhat accounts
+  // Load all local Hardhat accounts (Manual Test Mode)
   const loadLocalAccounts = async () => {
     try {
-      // const localProvider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-      // const accounts = [];
-      // Skipped for Private Key implementation
-      /*
-      
-      // Hardhat provides 20 test accounts
-      for (let i = 0; i < 20; i++) {
+      // Known Sepolia Test Keys
+      const testKeys = [
+        "240246504c8c1ee5d4871962b11ff85f2ed3ebaa8d958117309a0db110c06a0c", // Account 1
+        "0x5bb3c94ae652923737897b06017c972b291761eb587e88816602bd31e6dd8d12", //Account 2
+        // Account 3
+      ];
+
+      const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
+      const localProvider = new ethers.JsonRpcProvider(rpcUrl);
+      const accounts = [];
+
+      for (let i = 0; i < testKeys.length; i++) {
         try {
-          const signer = await localProvider.getSigner(i);
-          const address = await signer.getAddress();
-          const balance = await localProvider.getBalance(address);
-      
+          // Format key
+          let key = testKeys[i].trim();
+          if (!key.startsWith('0x')) key = '0x' + key;
+
+          const wallet = new ethers.Wallet(key, localProvider);
+          const balance = await localProvider.getBalance(wallet.address);
+
           accounts.push({
             index: i,
-            address: address,
+            address: wallet.address,
             balance: ethers.formatEther(balance),
-            signer: signer
+            signer: wallet
           });
         } catch (error) {
-          break; // No more accounts
+          console.error(`Error loading account ${i}:`, error);
         }
       }
-      
-            */
-      setAvailableAccounts([]);
-      console.log(`✅ Ready to connect via Private Key`);
+
+      setAvailableAccounts(accounts);
+      console.log(`✅ Loaded ${accounts.length} test accounts`);
     } catch (error) {
       console.error('Error loading accounts:', error);
     }
@@ -106,6 +113,12 @@ export const CrowdfundingProvider = ({ children }) => {
         return;
       }
 
+      // Ensure private key has 0x prefix
+      let formattedKey = privateKey.trim();
+      if (!formattedKey.startsWith('0x')) {
+        formattedKey = '0x' + formattedKey;
+      }
+
       console.log('Connecting with private key...');
 
       const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
@@ -115,7 +128,7 @@ export const CrowdfundingProvider = ({ children }) => {
       }
 
       const localProvider = new ethers.JsonRpcProvider(rpcUrl);
-      const wallet = new ethers.Wallet(privateKey, localProvider);
+      const wallet = new ethers.Wallet(formattedKey, localProvider);
 
       setProvider(localProvider);
       setSigner(wallet);
@@ -141,13 +154,22 @@ export const CrowdfundingProvider = ({ children }) => {
     try {
       const account = availableAccounts[accountIndex];
 
+      // Ensure provider is set
+      if (!provider) {
+        const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
+        const localProvider = new ethers.JsonRpcProvider(rpcUrl);
+        setProvider(localProvider);
+      }
+
       setSigner(account.signer);
       setCurrentAccount(account.address);
+      setConnectionType('local');
       setShowAccountSelector(false);
 
       console.log('✅ Account selected!');
       console.log('Address:', account.address);
       console.log('Balance:', account.balance, 'ETH');
+      setBalance(account.balance);
 
     } catch (error) {
       console.error('Error selecting account:', error);
