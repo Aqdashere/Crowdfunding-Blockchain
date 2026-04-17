@@ -1,7 +1,3 @@
-# Decentralized Crowdfunding Platform 
-**Subject:** Data Security and Blockchain
-**Course:** Master's in Data Science (2nd Year)
-
 This project explores the intersection of **Data Security** and **Blockchain Technology**. I built a decentralized application (DApp) to demonstrate how cryptographic primitives and smart contracts can replace traditional financial intermediaries.
 
 ## Project Objective
