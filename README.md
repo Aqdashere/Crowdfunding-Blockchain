@@ -1,4 +1,4 @@
-This project explores the intersection of **Data Security** and **Blockchain Technology**. I built a decentralized application (DApp) to demonstrate how cryptographic primitives and smart contracts can replace traditional financial intermediaries.
+This project explores the intersection of **Data Security** and **Blockchain Technology**. I built a decentralized application (DApp) to demonstrate how cryptographic primitives and smart contracts can replace traditional financial intermediaries
 
 ## Project Objective
  To securely manage funds and campaign data using Ethereum smart contracts, ensuring transparency and immutability without relying on a central database.
